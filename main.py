@@ -1,9 +1,9 @@
 import subprocess
 from tkinter import *
 from tkinter import messagebox
-from time import sleep
 import os
 import mic_record
+import ctypes
 
 
 class Alert(Toplevel):
@@ -51,12 +51,19 @@ class App:
                                   command=self.enDis)
         self.radio1.select()
         self.radio2.deselect()
-        self.radio1.grid(row=1, column=0, sticky="w")
-        self.radio2.grid(row=2, column=0, sticky="w")
+        self.radio1.grid(row=2, column=0, sticky="w")
+        self.radio2.grid(row=3, column=0, sticky="w")
         self.entry2 = Entry(master, state=DISABLED)
-        self.entry2.grid(row=2, column=1)
+        self.entry2.grid(row=3, column=1)
 
-        self.rcchecked = False
+        # self.rcchecked = False
+        self.check_var_mkv = IntVar()
+        self.check_var_mp4 = IntVar()
+        self.mkv = Checkbutton(master, text="mkv", command=self.mkv_checkboxChanged, variable=self.check_var_mkv)
+        self.mkv.grid(row=1, column=0)
+        self.mp4 = Checkbutton(master, text="mp4", command=self.mp4_checkboxChanged, variable=self.check_var_mp4)
+        self.mp4.grid(row=1, column=1)
+        self.mkv.select()
 
         self.startButton = Button(master, text="Start Recording", command=self.startRecord)
         self.startButton.grid(row=4, column=0, columnspan=2)
@@ -68,6 +75,7 @@ class App:
         self.mergeProcess = None
         self.available = False
         self.pollClosed()
+
 
     def pollClosed(self):
         if self.recording == True:
@@ -86,26 +94,35 @@ class App:
         #         self.master.title(string="Screen Recorder")
         root.after(100, self.pollClosed)
 
+
     def enDis(self):
         self.entry2.config(state=DISABLED)
         self.what = "desktop"
+
 
     def enDis1(self):
         self.entry2.config(state=NORMAL)
         self.what = "title"
 
-    def checkboxChanged(self):
-        self.rcchecked = not self.rcchecked
-        # print("Checkbox changed to " + str(self.rcchecked))
-        if self.rcchecked:
-            self.deviceselector.config(state=NORMAL)
+
+    def mkv_checkboxChanged(self):
+        if self.check_var_mkv.get():
+            self.mp4.deselect()
         else:
-            self.deviceselector.config(state=DISABLED)
+            self.mp4.select()
+
+
+    def mp4_checkboxChanged(self):
+        if self.check_var_mp4.get():
+            self.mkv.deselect()
+        else:
+            self.mkv.select()
+
 
     def startRecord(self):
         if self.recording == False:
             self.filename = self.entry1.get()
-            print(self.filename)
+            print("파일명 : " + self.filename + "     -    녹화시작")
             os.chdir("record_result")
             while 1:
                 matches = 0
@@ -142,17 +159,24 @@ class App:
                                                    '-framerate', '30', '-y', '-c:v', 'mpeg4', '-qscale:v',
                                                    '7', 'record_result/tmp.mkv'], startupinfo=startupinfo)
             else:
-                # 원본
-                self.proc = subprocess.Popen(args=['ffmpeg.exe', '-f', 'gdigrab', '-i', "desktop", '-framerate', '30',
-                                                   '-y', '-c:v', 'mpeg4', '-qscale:v', '7',
-                                                   str('record_result/' + self.filename + '.mkv'), ], startupinfo=startupinfo)
+                if self.check_var_mkv.get():
+                    self.proc = subprocess.Popen(args=['ffmpeg.exe', '-f', 'dshow', '-i', 'audio=virtual-audio-capturer',
+                                                       '-f', 'gdigrab', '-offset_x', '0', '-offset_y', '0', '-video_size',
+                                                       '1920x1080', '-itsoffset', '1', '-i', "desktop",
+                                                       '-framerate', '30', '-y', '-c:v', 'mpeg4', '-qscale:v', '7',
+                                                       str('record_result/' + self.filename + '.mkv'), ], startupinfo=startupinfo)
 
+                else:
+                    self.proc = subprocess.Popen(args=['ffmpeg', '-f', 'dshow', '-i', 'audio=virtual-audio-capturer', '-y', '-rtbufsize', '100M', "-f", 'gdigrab', '-framerate', '30',
+                                                       '-probesize', '10M', '-draw_mouse', '1', '-offset_x', '0', '-offset_y',
+                                                       '0', '-video_size', '1920x1080', '-itsoffset', '1', '-i', 'desktop',
+                                                       '-c:v', 'libx264', '-r', '30', '-preset', 'ultrafast', '-tune',
+                                                       'zerolatency', '-crf', '25', '-pix_fmt', 'yuv420p', str('record_result/' + self.filename + '.mp4'),
+                                                        ], startupinfo=startupinfo)
 
             # 마이크 녹음 시작
-            self.recorder.record("record_result/" + self.filename + ".wav")
-            root.grab_set()
-
-            # 컴퓨터 소리 녹음
+            # self.recorder.record("record_result/" + self.filename + ".wav")
+            # root.grab_set()
 
         elif self.recording == True:
             defaultFile = self.filename
@@ -165,12 +189,17 @@ class App:
             fileNum = 0
             self.recording = False
             self.available = False
-            self.proc.terminate()
 
-            self.recorder.stop_recording()
+            try:
+                ctypes.windll.kernel32.GenerateConsoleCtrlEvent(0, 0)
+                self.proc.wait()
+            except KeyboardInterrupt:
+                print("ignoring ctrlc")
 
-            if self.rcchecked:
-                self.webcamrecorder.stopCapture()
+            # 녹음 종료
+            # self.recorder.stop_recording()
+            # if self.rcchecked:
+            #     self.webcamrecorder.stopCapture()
             try:
                 os.mkdir("ScreenCaptures")
             except FileExistsError:
