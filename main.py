@@ -4,7 +4,7 @@ from tkinter import messagebox
 import os
 import mic_record
 import ctypes
-
+import signal
 
 class Alert(Toplevel):
     def __init__(self, parent):
@@ -160,14 +160,16 @@ class App:
                                                    '7', 'record_result/tmp.mkv'], startupinfo=startupinfo)
             else:
                 if self.check_var_mkv.get():
+                    print("mkv")
                     self.proc = subprocess.Popen(args=['ffmpeg.exe', '-f', 'dshow', '-i', 'audio=virtual-audio-capturer',
                                                        '-f', 'gdigrab', '-offset_x', '0', '-offset_y', '0', '-video_size',
                                                        '1920x1080', '-itsoffset', '1', '-i', "desktop",
-                                                       '-framerate', '30', '-y', '-c:v', 'mpeg4', '-qscale:v', '7',
+                                                       '-framerate', '60', '-y', '-c:v', 'mpeg4', '-qscale:v', '7',
                                                        str('record_result/' + self.filename + '.mkv'), ], startupinfo=startupinfo)
 
                 else:
-                    self.proc = subprocess.Popen(args=['ffmpeg', '-f', 'dshow', '-i', 'audio=virtual-audio-capturer', '-y', '-rtbufsize', '100M', "-f", 'gdigrab', '-framerate', '30',
+                    print("mp4")
+                    self.proc = subprocess.Popen(args=['ffmpeg', '-f', 'dshow', '-i', 'audio=virtual-audio-capturer', '-y', '-rtbufsize', '100M', "-f", 'gdigrab', '-framerate', '60',
                                                        '-probesize', '10M', '-draw_mouse', '1', '-offset_x', '0', '-offset_y',
                                                        '0', '-video_size', '1920x1080', '-itsoffset', '1', '-i', 'desktop',
                                                        '-c:v', 'libx264', '-r', '30', '-preset', 'ultrafast', '-tune',
@@ -192,7 +194,8 @@ class App:
 
             try:
                 ctypes.windll.kernel32.GenerateConsoleCtrlEvent(0, 0)
-                self.proc.wait()
+                # self.proc.send_signal(signal.CTRL_C_EVENT)
+                # self.proc.terminate()
             except KeyboardInterrupt:
                 print("ignoring ctrlc")
 
@@ -231,8 +234,8 @@ class App:
             os.chdir("../")
 
 
-root = Tk()
-
-app = App(root)
-root.mainloop()
+if __name__ == '__main__':
+    root = Tk()
+    app = App(root)
+    root.mainloop()
 
